@@ -1,0 +1,22 @@
+name: meta
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    - black
+    - isort
+    - opencv-python
+    - imageio
+    - ftfy
+    - regex
+    - tqdm
+    - git+https://github.com/openai/CLIP.git
+    - altair
+    - timm
+    - tensorboardX
+    - matplotlib
+    - test-tube
+    - wandb
+    - -i https://pypi.tuna.tsinghua.edu.cn/simple
