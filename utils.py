@@ -1,15 +1,14 @@
+import math
 import os
 import pathlib
-
+import random
+from argparse import ArgumentParser
 from glob import glob
 
-from argparse import ArgumentParser
-import torch
-import pytorch_lightning as pl
-import numpy as np
 import cv2
-import random
-import math
+import numpy as np
+import pytorch_lightning as pl
+import torch
 from torchvision import transforms
 
 
@@ -33,9 +32,7 @@ def do_training(hparams, model_constructor):
 
     hparams.sync_batchnorm = True
 
-    ttlogger = pl.loggers.TestTubeLogger(
-        "checkpoints", name=hparams.exp_name, version=hparams.version
-    )
+    ttlogger = pl.loggers.TestTubeLogger("checkpoints", name=hparams.exp_name, version=hparams.version)
 
     hparams.callbacks = make_checkpoint_callbacks(hparams.exp_name, hparams.version)
 
@@ -44,7 +41,7 @@ def do_training(hparams, model_constructor):
 
     trainer = pl.Trainer.from_argparse_args(hparams)
     trainer.fit(model)
-    
+
 
 def get_default_argument_parser():
     parser = ArgumentParser(add_help=False)
@@ -55,9 +52,7 @@ def get_default_argument_parser():
         help="number of nodes for distributed training",
     )
 
-    parser.add_argument(
-        "--exp_name", type=str, required=True, help="name your experiment"
-    )
+    parser.add_argument("--exp_name", type=str, required=True, help="name your experiment")
 
     parser.add_argument(
         "--dry-run",
@@ -80,13 +75,9 @@ def get_default_argument_parser():
         help="accumulate N batches for gradient computation",
     )
 
-    parser.add_argument(
-        "--max_epochs", type=int, default=200, help="maximum number of epochs"
-    )
+    parser.add_argument("--max_epochs", type=int, default=200, help="maximum number of epochs")
 
-    parser.add_argument(
-        "--project_name", type=str, default="lightseg", help="project name for logging"
-    )
+    parser.add_argument("--project_name", type=str, default="lightseg", help="project name for logging")
 
     return parser
 
@@ -113,10 +104,7 @@ def make_checkpoint_callbacks(exp_name, version, base_path="checkpoints", freque
 
 
 def get_latest_version(folder):
-    versions = [
-        int(pathlib.PurePath(path).name.split("_")[-1])
-        for path in glob(f"{folder}/version_*/")
-    ]
+    versions = [int(pathlib.PurePath(path).name.split("_")[-1]) for path in glob(f"{folder}/version_*/")]
 
     if len(versions) == 0:
         return None
@@ -286,24 +274,14 @@ class Resize(object):
                     # fit height
                     scale_width = scale_height
             else:
-                raise ValueError(
-                    f"resize_method {self.__resize_method} not implemented"
-                )
+                raise ValueError(f"resize_method {self.__resize_method} not implemented")
 
         if self.__resize_method == "lower_bound":
-            new_height = self.constrain_to_multiple_of(
-                scale_height * height, min_val=self.__height
-            )
-            new_width = self.constrain_to_multiple_of(
-                scale_width * width, min_val=self.__width
-            )
+            new_height = self.constrain_to_multiple_of(scale_height * height, min_val=self.__height)
+            new_width = self.constrain_to_multiple_of(scale_width * width, min_val=self.__width)
         elif self.__resize_method == "upper_bound":
-            new_height = self.constrain_to_multiple_of(
-                scale_height * height, max_val=self.__height
-            )
-            new_width = self.constrain_to_multiple_of(
-                scale_width * width, max_val=self.__width
-            )
+            new_height = self.constrain_to_multiple_of(scale_height * height, max_val=self.__height)
+            new_width = self.constrain_to_multiple_of(scale_width * width, max_val=self.__width)
         elif self.__resize_method == "minimal":
             new_height = self.constrain_to_multiple_of(scale_height * height)
             new_width = self.constrain_to_multiple_of(scale_width * width)
@@ -315,15 +293,11 @@ class Resize(object):
     def make_letter_box(self, sample):
         top = bottom = (self.__height - sample.shape[0]) // 2
         left = right = (self.__width - sample.shape[1]) // 2
-        sample = cv2.copyMakeBorder(
-            sample, top, bottom, left, right, cv2.BORDER_CONSTANT, None, 0
-        )
+        sample = cv2.copyMakeBorder(sample, top, bottom, left, right, cv2.BORDER_CONSTANT, None, 0)
         return sample
 
     def __call__(self, sample):
-        width, height = self.get_size(
-            sample["image"].shape[1], sample["image"].shape[0]
-        )
+        width, height = self.get_size(sample["image"].shape[1], sample["image"].shape[0])
 
         # resize sample
         sample["image"] = cv2.resize(
@@ -347,9 +321,7 @@ class Resize(object):
                     sample["disparity"] = self.make_letter_box(sample["disparity"])
 
             if "depth" in sample:
-                sample["depth"] = cv2.resize(
-                    sample["depth"], (width, height), interpolation=cv2.INTER_NEAREST
-                )
+                sample["depth"] = cv2.resize(sample["depth"], (width, height), interpolation=cv2.INTER_NEAREST)
 
                 if self.__letter_box:
                     sample["depth"] = self.make_letter_box(sample["depth"])

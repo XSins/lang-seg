@@ -1,4 +1,3 @@
-
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -37,19 +36,23 @@ class HPNLearner(nn.Module):
         self.encoder_layer3to2 = make_building_block(outch3, [outch3, outch3, outch3], [3, 3, 3], [1, 1, 1])
 
         # Decoder layers
-        self.decoder1 = nn.Sequential(nn.Conv2d(outch3, outch3, (3, 3), padding=(1, 1), bias=True),
-                                      nn.ReLU(),
-                                      nn.Conv2d(outch3, outch2, (3, 3), padding=(1, 1), bias=True),
-                                      nn.ReLU())
+        self.decoder1 = nn.Sequential(
+            nn.Conv2d(outch3, outch3, (3, 3), padding=(1, 1), bias=True),
+            nn.ReLU(),
+            nn.Conv2d(outch3, outch2, (3, 3), padding=(1, 1), bias=True),
+            nn.ReLU(),
+        )
 
-        self.decoder2 = nn.Sequential(nn.Conv2d(outch2, outch2, (3, 3), padding=(1, 1), bias=True),
-                                      nn.ReLU(),
-                                      nn.Conv2d(outch2, 2, (3, 3), padding=(1, 1), bias=True))
+        self.decoder2 = nn.Sequential(
+            nn.Conv2d(outch2, outch2, (3, 3), padding=(1, 1), bias=True),
+            nn.ReLU(),
+            nn.Conv2d(outch2, 2, (3, 3), padding=(1, 1), bias=True),
+        )
 
     def interpolate_support_dims(self, hypercorr, spatial_size=None):
         bsz, ch, ha, wa, hb, wb = hypercorr.size()
         hypercorr = hypercorr.permute(0, 4, 5, 1, 2, 3).contiguous().view(bsz * hb * wb, ch, ha, wa)
-        hypercorr = F.interpolate(hypercorr, spatial_size, mode='bilinear', align_corners=True)
+        hypercorr = F.interpolate(hypercorr, spatial_size, mode="bilinear", align_corners=True)
         o_hb, o_wb = spatial_size
         hypercorr = hypercorr.view(bsz, hb, wb, ch, o_hb, o_wb).permute(0, 3, 4, 5, 1, 2).contiguous()
         return hypercorr
@@ -76,7 +79,7 @@ class HPNLearner(nn.Module):
         # Decode the encoded 4D-tensor
         hypercorr_decoded = self.decoder1(hypercorr_encoded)
         upsample_size = (hypercorr_decoded.size(-1) * 2,) * 2
-        hypercorr_decoded = F.interpolate(hypercorr_decoded, upsample_size, mode='bilinear', align_corners=True)
+        hypercorr_decoded = F.interpolate(hypercorr_decoded, upsample_size, mode="bilinear", align_corners=True)
         logit_mask = self.decoder2(hypercorr_decoded)
 
         return logit_mask

@@ -1,46 +1,47 @@
-import os
 import argparse
-import numpy as np
-from tqdm import tqdm
-from collections import OrderedDict
-import torch
-import torch.nn.functional as F
-from torch.utils import data
-import torchvision.transforms as transform
-from torch.nn.parallel.scatter_gather import gather
-import encoding.utils as utils
-from encoding.nn import SegmentationLosses, SyncBatchNorm
-from encoding.parallel import DataParallelModel, DataParallelCriterion
-from encoding.datasets import test_batchify_fn 
-from encoding.models.sseg import BaseNet
-from modules.lseg_module import LSegModule
-from utils import Resize
-import cv2
-import math
-import types
-import functools
-import torchvision.transforms as torch_transforms
 import copy
+import functools
 import itertools
-from PIL import Image
-import matplotlib.pyplot as plt
+import math
+import os
+import types
+from collections import OrderedDict
+
 import clip
+import cv2
+import encoding.utils as utils
 import matplotlib as mpl
 import matplotlib.colors as mplc
 import matplotlib.figure as mplfigure
 import matplotlib.patches as mpatches
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-from data import get_dataset
-from additional_utils.encoding_models import MultiEvalModule as LSeg_MultiEvalModule
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn.functional as F
+import torchvision.transforms as transform
+import torchvision.transforms as torch_transforms
 import torchvision.transforms as transforms
+from encoding.datasets import test_batchify_fn
+from encoding.models.sseg import BaseNet
+from encoding.nn import SegmentationLosses, SyncBatchNorm
+from encoding.parallel import DataParallelCriterion, DataParallelModel
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from PIL import Image
+from torch.nn.parallel.scatter_gather import gather
+from torch.utils import data
+from tqdm import tqdm
+
+from additional_utils.encoding_models import MultiEvalModule as LSeg_MultiEvalModule
+from data import get_dataset
+from modules.lseg_module import LSegModule
+from utils import Resize
+
 
 class Options:
     def __init__(self):
         parser = argparse.ArgumentParser(description="PyTorch Segmentation")
         # model and dataset
-        parser.add_argument(
-            "--model", type=str, default="encnet", help="model name (default: encnet)"
-        )
+        parser.add_argument("--model", type=str, default="encnet", help="model name (default: encnet)")
         parser.add_argument(
             "--backbone",
             type=str,
@@ -53,15 +54,9 @@ class Options:
             default="ade20k",
             help="dataset name (default: pascal12)",
         )
-        parser.add_argument(
-            "--workers", type=int, default=16, metavar="N", help="dataloader threads"
-        )
-        parser.add_argument(
-            "--base-size", type=int, default=520, help="base image size"
-        )
-        parser.add_argument(
-            "--crop-size", type=int, default=480, help="crop image size"
-        )
+        parser.add_argument("--workers", type=int, default=16, metavar="N", help="dataloader threads")
+        parser.add_argument("--base-size", type=int, default=520, help="base image size")
+        parser.add_argument("--crop-size", type=int, default=480, help="crop image size")
         parser.add_argument(
             "--train-split",
             type=str,
@@ -69,18 +64,14 @@ class Options:
             help="dataset train split (default: train)",
         )
         # training hyper params
-        parser.add_argument(
-            "--aux", action="store_true", default=False, help="Auxilary Loss"
-        )
+        parser.add_argument("--aux", action="store_true", default=False, help="Auxilary Loss")
         parser.add_argument(
             "--se-loss",
             action="store_true",
             default=False,
             help="Semantic Encoding Loss SE-loss",
         )
-        parser.add_argument(
-            "--se-weight", type=float, default=0.2, help="SE-loss weight (default: 0.2)"
-        )
+        parser.add_argument("--se-weight", type=float, default=0.2, help="SE-loss weight (default: 0.2)")
         parser.add_argument(
             "--batch-size",
             type=int,
@@ -104,15 +95,9 @@ class Options:
             default=False,
             help="disables CUDA training",
         )
-        parser.add_argument(
-            "--seed", type=int, default=1, metavar="S", help="random seed (default: 1)"
-        )
-        parser.add_argument(
-            "--weights", type=str, default=None, help="checkpoint to test"
-        )
-        parser.add_argument(
-            "--eval", action="store_true", default=False, help="evaluating mIoU"
-        )
+        parser.add_argument("--seed", type=int, default=1, metavar="S", help="random seed (default: 1)")
+        parser.add_argument("--weights", type=str, default=None, help="checkpoint to test")
+        parser.add_argument("--eval", action="store_true", default=False, help="evaluating mIoU")
         parser.add_argument(
             "--export",
             type=str,
@@ -140,13 +125,11 @@ class Options:
         )
         parser.add_argument(
             "--module",
-            default='lseg',
+            default="lseg",
             help="select model definition",
         )
         # test option
-        parser.add_argument(
-            "--data-path", type=str, default=None, help="path to test image folder"
-        )
+        parser.add_argument("--data-path", type=str, default=None, help="path to test image folder")
         parser.add_argument(
             "--no-scaleinv",
             dest="scale_inv",
@@ -154,9 +137,7 @@ class Options:
             action="store_false",
             help="turn off scaleinv layers",
         )
-        parser.add_argument(
-            "--widehead", default=False, action="store_true", help="wider output head"
-        )
+        parser.add_argument("--widehead", default=False, action="store_true", help="wider output head")
         parser.add_argument(
             "--widehead_hr",
             default=False,
@@ -202,7 +183,7 @@ class Options:
         )
         parser.add_argument(
             "--activation",
-            choices=['lrelu', 'tanh'],
+            choices=["lrelu", "tanh"],
             default="lrelu",
             help="use which activation to activate the block",
         )
@@ -257,16 +238,14 @@ def test(args):
     )
 
     # dataloader
-    loader_kwargs = (
-        {"num_workers": args.workers, "pin_memory": True} if args.cuda else {}
-    )
+    loader_kwargs = {"num_workers": args.workers, "pin_memory": True} if args.cuda else {}
     test_data = data.DataLoader(
         testset,
         batch_size=args.test_batch_size,
         drop_last=False,
         shuffle=False,
         collate_fn=test_batchify_fn,
-        **loader_kwargs
+        **loader_kwargs,
     )
 
     if isinstance(module.net, BaseNet):
@@ -286,16 +265,14 @@ def test(args):
             "base_size": args.base_size,
             "crop_size": args.crop_size,
         }
-        trainset = get_dataset(
-            args.dataset, split=args.train_split, mode="train", **data_kwargs
-        )
+        trainset = get_dataset(args.dataset, split=args.train_split, mode="train", **data_kwargs)
         trainloader = data.DataLoader(
             ReturnFirstClosure(trainset),
             root=args.data_path,
             batch_size=args.batch_size,
             drop_last=True,
             shuffle=True,
-            **loader_kwargs
+            **loader_kwargs,
         )
         print("Reseting BN statistics")
         model.cuda()
@@ -305,15 +282,9 @@ def test(args):
         torch.save(model.state_dict(), args.export + ".pth")
         return
 
-    scales = (
-        [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25]
-        if args.dataset == "citys"
-        else [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
-    )  
+    scales = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25] if args.dataset == "citys" else [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
 
-    evaluator = LSeg_MultiEvalModule(
-        model, num_classes, scales=scales, flip=True
-    ).cuda()
+    evaluator = LSeg_MultiEvalModule(model, num_classes, scales=scales, flip=True).cuda()
     evaluator.eval()
 
     metric = utils.SegmentationMetric(testset.num_class)
@@ -327,9 +298,7 @@ def test(args):
             with torch.no_grad():
                 if False:
                     sample = {"image": image[0].cpu().permute(1, 2, 0).numpy()}
-                    out = torch.zeros(
-                        1, testset.num_class, image[0].shape[1], image[0].shape[2]
-                    ).cuda()
+                    out = torch.zeros(1, testset.num_class, image[0].shape[1], image[0].shape[2]).cuda()
 
                     H, W = image[0].shape[1], image[0].shape[2]
                     for scale in scales:
@@ -353,12 +322,7 @@ def test(args):
                             image_interpolation_method=cv2.INTER_AREA,
                         )
 
-                        inf_image = (
-                            torch.from_numpy(rs(sample)["image"])
-                            .cuda()
-                            .permute(2, 0, 1)
-                            .unsqueeze(0)
-                        )
+                        inf_image = torch.from_numpy(rs(sample)["image"]).cuda().permute(2, 0, 1).unsqueeze(0)
                         inf_image = torch.cat((inf_image, torch.fliplr(inf_image)), 0)
                         try:
                             pred = model(inf_image)
@@ -381,22 +345,19 @@ def test(args):
                     predicts = [out]
                 else:
                     predicts = evaluator.parallel_forward(image)
-                    
+
                 metric.update(dst, predicts)
                 pixAcc, mIoU = metric.get()
-                
+
                 _, _, total_inter, total_union = metric.get_all()
                 per_class_iou += 1.0 * total_inter / (np.spacing(1) + total_union)
-                cnt+=1
-                
+                cnt += 1
+
                 tbar.set_description("pixAcc: %.4f, mIoU: %.4f" % (pixAcc, mIoU))
         else:
             with torch.no_grad():
                 outputs = evaluator.parallel_forward(image)
-                predicts = [
-                    testset.make_pred(torch.max(output, 1)[1].cpu().numpy())
-                    for output in outputs
-                ]
+                predicts = [testset.make_pred(torch.max(output, 1)[1].cpu().numpy()) for output in outputs]
 
             # output folder
             outdir = "outdir_ours"
@@ -409,12 +370,13 @@ def test(args):
                 mask.save(os.path.join(outdir, outname))
 
     if args.eval:
-        each_classes_iou = per_class_iou/cnt
+        each_classes_iou = per_class_iou / cnt
         print("pixAcc: %.4f, mIoU: %.4f" % (pixAcc, mIoU))
         print(each_classes_iou)
         f.write("dataset {} ==> pixAcc: {:.4f}, mIoU: {:.4f}\n".format(args.dataset, pixAcc, mIoU))
-        for per_iou in each_classes_iou: f.write('{:.4f}, '.format(per_iou))
-        f.write('\n')
+        for per_iou in each_classes_iou:
+            f.write("{:.4f}, ".format(per_iou))
+        f.write("\n")
 
 
 class ReturnFirstClosure(object):
@@ -432,5 +394,5 @@ class ReturnFirstClosure(object):
 if __name__ == "__main__":
     args = Options().parse()
     torch.manual_seed(args.seed)
-    args.test_batch_size = torch.cuda.device_count() 
+    args.test_batch_size = torch.cuda.device_count()
     test(args)

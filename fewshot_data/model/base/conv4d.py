@@ -5,14 +5,17 @@ import torch.nn as nn
 
 
 class CenterPivotConv4d(nn.Module):
-    r""" CenterPivot 4D conv"""
+    r"""CenterPivot 4D conv"""
+
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias=True):
         super(CenterPivotConv4d, self).__init__()
 
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size[:2], stride=stride[:2],
-                               bias=bias, padding=padding[:2])
-        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size[2:], stride=stride[2:],
-                               bias=bias, padding=padding[2:])
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size[:2], stride=stride[:2], bias=bias, padding=padding[:2]
+        )
+        self.conv2 = nn.Conv2d(
+            in_channels, out_channels, kernel_size[2:], stride=stride[2:], bias=bias, padding=padding[2:]
+        )
 
         self.stride34 = stride[2:]
         self.kernel_size = kernel_size

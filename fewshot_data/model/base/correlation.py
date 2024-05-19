@@ -1,4 +1,5 @@
 r""" Provides functions that builds/manipulates correlation tensors """
+
 import torch
 
 
@@ -22,8 +23,8 @@ class Correlation:
             corr = corr.clamp(min=0)
             corrs.append(corr)
 
-        corr_l4 = torch.stack(corrs[-stack_ids[0]:]).transpose(0, 1).contiguous()
-        corr_l3 = torch.stack(corrs[-stack_ids[1]:-stack_ids[0]]).transpose(0, 1).contiguous()
-        corr_l2 = torch.stack(corrs[-stack_ids[2]:-stack_ids[1]]).transpose(0, 1).contiguous()
+        corr_l4 = torch.stack(corrs[-stack_ids[0] :]).transpose(0, 1).contiguous()
+        corr_l3 = torch.stack(corrs[-stack_ids[1] : -stack_ids[0]]).transpose(0, 1).contiguous()
+        corr_l2 = torch.stack(corrs[-stack_ids[2] : -stack_ids[1]]).transpose(0, 1).contiguous()
 
         return [corr_l4, corr_l3, corr_l2]
